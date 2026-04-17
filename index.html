@@ -322,6 +322,14 @@ label{display:block;font-size:11px;color:var(--text2);margin-bottom:4px;}
 
 <!-- ===== FOOD ===== -->
 <div class="section" id="section-food">
+  <div class="card mb14">
+    <div class="card-title">記録する日付</div>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+      <input type="date" id="food-date" style="width:160px;" onchange="loadFoodForDate(this.value)">
+      <button class="btn btn-ghost" onclick="setFoodToday()">今日</button>
+      <button class="btn btn-ghost" onclick="loadFoodForDate(document.getElementById('food-date').value)">この日を読み込む</button>
+    </div>
+  </div>
   <div class="macro-bar">
     <div class="macro-item"><div class="macro-num macro-p" id="m-p">0</div><div class="macro-unit">g</div><div class="macro-name">タンパク質</div></div>
     <div class="macro-divider"></div>
@@ -632,7 +640,12 @@ function nav(id,el){
   const titles={today:'今日の記録',food:'食事・栄養',supple:'サプリ管理',diary:'Diary',calendar:'カレンダー',weight:'体重記録',recipes:'レシピ登録',fooddb:'食材DB'};
   document.getElementById('topbar-title').textContent=titles[id]||'';
   document.getElementById('topbar-save-btn').style.display=id==='today'?'':'none';
-  if(id==='food')renderMealBlocks();
+  if(id==='food'){
+    const today=new Date().toISOString().split('T')[0];
+    const foodDateEl=document.getElementById('food-date');
+    if(foodDateEl&&!foodDateEl.value)foodDateEl.value=today;
+    loadFoodForDate(foodDateEl?.value||today);
+  }
   if(id==='supple')renderSuppleSection();
   if(id==='diary')renderDiarySection();
   if(id==='calendar')renderCalendar();
@@ -682,6 +695,23 @@ function clearToday(){
 }
 
 // FOOD
+function setFoodToday(){
+  const today=new Date().toISOString().split('T')[0];
+  document.getElementById('food-date').value=today;
+  loadFoodForDate(today);
+}
+function loadFoodForDate(dateRaw){
+  if(!dateRaw)return;
+  const rec=S.history.find(h=>h.dateRaw===dateRaw);
+  if(rec&&rec.foods){
+    S.todayFoods=JSON.parse(JSON.stringify(rec.foods));
+    S.todayMealTimes=JSON.parse(JSON.stringify(rec.mealTimes||{morning:'',lunch:'',dinner:'',snack:''}));
+  } else {
+    S.todayFoods={morning:[],lunch:[],dinner:[],snack:[]};
+    S.todayMealTimes={morning:'',lunch:'',dinner:'',snack:''};
+  }
+  renderMealBlocks();
+}
 function renderMealBlocks(){renderMealBlocksIn('meal-blocks',S.todayFoods,S.todayMealTimes,false);}
 function renderMealBlocksIn(containerId,foods,times,editMode){
   const c=document.getElementById(containerId);
@@ -738,7 +768,19 @@ function updateEmMacros(){
   const el=document.getElementById('em-macro-summary');
   if(el)el.textContent=`合計 P${p.toFixed(1)}g F${f.toFixed(1)}g C${c.toFixed(1)}g ${Math.round(k)}kcal`;
 }
-function saveFoodLog(){save();showToast('食事記録を保存しました ✓');}
+function saveFoodLog(){
+  const dateRaw=document.getElementById('food-date')?.value||new Date().toISOString().split('T')[0];
+  const dateStr=new Date(dateRaw).toLocaleDateString('ja-JP',{year:'numeric',month:'long',day:'numeric',weekday:'short'});
+  const idx=S.history.findIndex(h=>h.dateRaw===dateRaw);
+  if(idx>=0){
+    S.history[idx].foods=JSON.parse(JSON.stringify(S.todayFoods));
+    S.history[idx].mealTimes=JSON.parse(JSON.stringify(S.todayMealTimes));
+  } else {
+    S.history.unshift({dateRaw,date:dateStr,foods:JSON.parse(JSON.stringify(S.todayFoods)),mealTimes:JSON.parse(JSON.stringify(S.todayMealTimes))});
+    S.history.sort((a,b)=>b.dateRaw.localeCompare(a.dateRaw));
+  }
+  save();showToast('食事記録を保存しました ✓');
+}
 
 // SUPPLE
 function switchSuppleTab(tab){document.getElementById('supple-today-view').style.display=tab==='today'?'':'none';document.getElementById('supple-manage-view').style.display=tab==='manage'?'':'none';document.getElementById('supple-tab-today').className=tab==='today'?'btn btn-primary':'btn btn-ghost';document.getElementById('supple-tab-manage').className=tab==='manage'?'btn btn-primary':'btn btn-ghost';}
